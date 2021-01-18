@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <title>
+         Tron Light Cycles
+      </title>
+   </head>
+   <body>
+      <h1>Tron Light Cycles (Motocyclettes de lumière de Tron)</h1>
+      <div style="width: 1000px;  position: relative;">
+         <canvas id="myCanvas" width="700" height="700" style="border:2px solid #000000;">
+         </canvas>
+         <div style="position: absolute; top:0px; left:720px;">
+            <label> Player 1 </label>
+            <form>
+               <select id="playerCol1">
+                  <option value="#00FFFF"> Select Player 1 color </option>
+                  <option value="#FF0000"> Red </option>
+                  <option value="#FFA500"> Orange </option>
+                  <option value="#FFFF00"> Yellow </option>
+                  <option value="#7FFF00"> Green </option>
+                  <option value="#0000FF"> Blue </option>
+                  <option value="#8A2BE2"> Purple </option>
+               </select>
+            </form>
+         </div>
+         <div style="position: absolute; top:0px; left:900px;">
+            <label> Player 2 </label>
+            <form>
+               <select id="playerCol2">
+                  <option value="#00FFFF"> Select Player 2 color </option>
+                  <option value="#FF0000"> Red </option>
+                  <option value="#FFA500"> Orange </option>
+                  <option value="#FFFF00"> Yellow </option>
+                  <option value="#7FFF00"> Green </option>
+                  <option value="#0000FF"> Blue </option>
+                  <option value="#8A2BE2"> Purple </option>
+               </select>
+            </form>
+         </div>
+         <div style="position: absolute; top:50px; left:780px;">
+            <p id="player1"> 0 </p>
+         </div>
+         <p style="position: absolute; top: 50px; left: 870px;"> - </p>
+         <div style="position: absolute; top:50px; left:960px;">
+            <p id="player2"> 0 </p>
+         </div>
+         <div style="position: absolute; top:0px; left:1050px;">
+            <button onclick="goButtonHandler()">Go</button>
+            <button onclick="pauseButtonHandler()">Pause</button>
+            <button onclick="restartButtonHandler()">Restart</button>
+            <button onclick="replayButtonHandler()">Replay</button>
+            <button onclick="finishButtonHandler()">Finish</button>
+         </div>
+         <div style="position: absolute; top:100px; left:720px;">
+            <label class="radio">
+            <input type="radio" name="mouvement" id="souris">
+            Mouse
+            </label>
+            <label class="radio">
+            <input type="radio" name="mouvement" id="clavier" checked>
+            Keyboard
+            </label>
+         </div>
+      </div>
+      <script>
+         const TIME_START = 200;
+         const SPEED = 1;
+
+         // execute une fonction en t temp
+         // timer il est dynamique pas statique pour controler le speed
+         // utilise setTimeout du java script
+         function timer() {
+           var timer = {
+             running: false,
+             iv: 2000,
+             timeout: false,
+             cb: function () { },
+             start: function (cb, iv, sd) {
+               var elm = this;
+               clearInterval(this.timeout);
+               this.running = true;
+               if (cb) this.cb = cb;
+               if (iv) this.iv = iv;
+               if (sd) elm.execute(elm);
+               this.timeout = setTimeout(function () { elm.execute(elm) }, this.iv);
+             },
+             execute: function (e) {
+               if (!e.running) return false;
+               e.cb();
+               e.start();
+             },
+             stop: function () {
+               this.running = false;
+             },
+             set_interval: function (iv) {
+               clearInterval(this.timeout);
+               this.start(false, iv);
+             }
+           };
+           return timer;
+         }
+
+         //Temps de rendering initial
+         var t = TIME_START;
+         var timer_1 = new timer();
+
+         // Creates a 2D array filled with zeros
+         var create2DArray = function (numColumns, numRows) {
+           var array = [];
+           for (var c = 0; c < numColumns; c++) {
+             array.push([]); // adds an empty 1D array at the end of "array"
+             for (var r = 0; r < numRows; r++) {
+               array[c].push(0); // add zero at end of the 1D array "array[c]"
+             }
+           }
+           return array;
+         }
+
+         var canvas = document.getElementById("myCanvas");
+         var C = canvas.getContext("2d");
+         var canvas_rectangle = canvas.getBoundingClientRect();
+
+         var cellSize = 5; // each cell in the grid is a square of this size, in pixels
+
+         var NUM_CELLS_HORIZONTAL = canvas.width / cellSize;
+         var NUM_CELLS_VERTICAL = canvas.height / cellSize;
+         var x0 = (canvas.width - NUM_CELLS_HORIZONTAL * cellSize) / 2;
+         var y0 = (canvas.height - NUM_CELLS_VERTICAL * cellSize) / 2;
+
+         var grid = create2DArray(NUM_CELLS_HORIZONTAL, NUM_CELLS_VERTICAL);
+         var CELL_EMPTY = 0;
+         var CELL_OCCUPIED1 = 1;
+         var CELL_OCCUPIED2 = 2;
+         var mouseDown_x = 0;
+         var mouseDown_y = 0;
+         var mouseUp_x = 0;
+         var mouseUp_y = 0;
+
+
+         // Current position and direction of light cycle 1
+         var lightCycle1_x;
+         var lightCycle1_y;
+         var lightCycle1_vx;
+         var lightCycle1_vy;
+         var lightCycle1_alive;
+
+         // Current position and direction of light cycle 2
+
+         var lightCycle2_x;
+         var lightCycle2_y;
+         var lightCycle2_vx;
+         var lightCycle2_vy;
+         var lightCycle2_alive;
+
+         var go = false;
+
+         var start = function () {
+
+           lightCycle1_x = NUM_CELLS_HORIZONTAL / 2;
+           lightCycle1_y = NUM_CELLS_VERTICAL - 2;
+           lightCycle1_vx = 0; // positive for right
+           lightCycle1_vy = -1; // positive for down
+           lightCycle1_alive = true;
+
+
+           lightCycle2_x = NUM_CELLS_HORIZONTAL / 2;
+           lightCycle2_y = 1;
+           lightCycle2_vx = 0; // positive for right
+           lightCycle2_vy = 1; // positive for down
+           lightCycle2_alive = true;
+
+           grid[lightCycle1_x][lightCycle1_y] = CELL_OCCUPIED1; // to mark the initial grid cell as occupied by ligth cycle 1
+           grid[lightCycle2_x][lightCycle2_y] = CELL_OCCUPIED2; // to mark the initial grid cell as occupied by light cycle 2
+
+         }
+         start();
+
+         function keyDownHandler(e) {
+           //Permet au joueur 1 d'utiliser le clavier s'il choisi le bouton clavier
+           if (document.getElementById("clavier").checked) {
+             if (e.keyCode === 38) { 		// up arrow
+               lightCycle1_vx = 0;
+               lightCycle1_vy = -1;
+             }
+             else if (e.keyCode === 40) { // down arrow
+               lightCycle1_vx = 0;
+               lightCycle1_vy = 1;
+             }
+             else if (e.keyCode === 37) { // left arrow
+               lightCycle1_vx = -1;
+               lightCycle1_vy = 0;
+             }
+             else if (e.keyCode === 39) { // right arrow
+               lightCycle1_vx = 1;
+               lightCycle1_vy = 0;
+             }
+           }
+           if (e.keyCode === 87) { 			// W
+             lightCycle2_vx = 0;
+             lightCycle2_vy = -1;
+           }
+           else if (e.keyCode === 65) { // A
+             lightCycle2_vx = -1;
+             lightCycle2_vy = 0;
+           }
+           else if (e.keyCode === 83) { // S
+             lightCycle2_vx = 0;
+             lightCycle2_vy = 1;
+           }
+           else if (e.keyCode === 68) { // D
+             lightCycle2_vx = 1;
+             lightCycle2_vy = 0;
+           }
+           else if (e.keyCode === 13) { // Enter=Go
+             goButtonHandler();
+           }
+           else if (e.keyCode === 80) { // P=Pause
+             pauseButtonHandler();
+           }
+           else if (e.keyCode === 82) { // R=Restart
+             restartButtonHandler();
+           }
+           else if (e.keyCode === 84) { // T=Replay
+             replayButtonHandler();
+           }
+           else if (e.keyCode === 70) { // F=Finish
+             finishButtonHandler();
+           }
+         }
+         function mouseUpHandler(e) {
+           mouseUp_x = e.pageX;
+           mouseUp_y = e.pageY;
+         }
+
+         function mouseDownHandler(e) {
+           //Permet au joueur 1 d'utiliser la souris s'il choisi le bouton souris
+           //Calcule la différence de position quand le joueur click et lache la souris
+           if (document.getElementById("souris").checked) {
+             mouseDown_x = e.pageX;
+             mouseDown_y = e.pageY;
+             canvas.onmouseup = mouseUpHandler;
+
+             delta_x = mouseUp_x - mouseDown_x;
+             delta_y = mouseUp_y - mouseDown_y;
+             /* console.log("Delta_x: " + delta_x);
+             console.log("Down_X: " + mouseDown_x);
+             console.log("Down_Y: " + mouseDown_y);
+             console.log("Up_X: " + mouseUp_x);
+             console.log("Up_Y: " + mouseUp_y);
+             console.log("Delta_y: " + delta_y);*/
+
+             if (delta_x > 0 && lightCycle1_vy != 0) {        //turn right
+               console.log("Option 1");
+               lightCycle1_vx = -1;
+               lightCycle1_vy = 0;
+             }
+             else if (delta_x < 0 && lightCycle1_vy != 0) {     //turn left
+               console.log("Option 2");
+               lightCycle1_vx = 1;
+               lightCycle1_vy = 0;
+             }
+
+             else if (delta_y > 0 && lightCycle1_vx != 0) {      //down
+               console.log("Option 3");
+               lightCycle1_vx = 0;
+               lightCycle1_vy = -1;
+             }
+             else if (delta_y < 0 && lightCycle1_vx != 0) {        //up
+               console.log("Option 4");
+               lightCycle1_vx = 0;
+               lightCycle1_vy = 1;
+             }
+
+             delta_x = 0;
+             delta_y = 0;
+             mouseDown_x = 0;
+             mouseDown_y = 0;
+             mouseUp_x = 0;
+             mouseUp_y = 0;
+           }
+         }
+
+
+         document.onkeydown = keyDownHandler;
+         canvas.onmousedown = mouseDownHandler;
+
+         var redraw = function () {
+           console.log("redraw");
+           playerCol1 = document.getElementById("playerCol1");
+           lightCycle1_color = playerCol1.options[playerCol1.selectedIndex].value;
+
+           playerCol2 = document.getElementById("playerCol2");
+           lightCycle2_color = playerCol2.options[playerCol2.selectedIndex].value;
+
+           C.fillStyle = "#000000";
+           // C.clearRect(0, 0, canvas.width, canvas.height);
+           C.fillRect(0, 0, canvas.width, canvas.height);
+
+           for (var i = 0; i < NUM_CELLS_HORIZONTAL; ++i) {
+             for (var j = 0; j < NUM_CELLS_VERTICAL; ++j) {
+               if (grid[i][j] === CELL_OCCUPIED1) {
+                 C.fillStyle = lightCycle1_color;
+                 C.fillRect(x0 + i * cellSize + 1, y0 + j * cellSize + 1, cellSize - 2, cellSize - 2);
+               }
+               else if (grid[i][j] === CELL_OCCUPIED2) {
+                 C.fillStyle = lightCycle2_color;
+                 C.fillRect(x0 + i * cellSize + 1, y0 + j * cellSize + 1, cellSize - 2, cellSize - 2);
+               }
+             }
+           }
+           C.fillStyle = lightCycle1_alive ? "#FF0000" : "#ffffff";
+           C.fillRect(x0 + lightCycle1_x * cellSize, y0 + lightCycle1_y * cellSize, cellSize, cellSize);
+           C.fillStyle = lightCycle2_alive ? "#FF0000" : "#ffffff";
+           C.fillRect(x0 + lightCycle2_x * cellSize, y0 + lightCycle2_y * cellSize, cellSize, cellSize);
+
+         }
+         redraw();  // Pour dessiner la grille avant le début du jeu
+
+         var advance = function () {
+           console.log("advance");
+           if (lightCycle1_alive) {
+             var new1_x = lightCycle1_x + lightCycle1_vx;
+             var new1_y = lightCycle1_y + lightCycle1_vy;
+
+             // Check for collision with grid boundaries and with trail
+             if (
+             new1_x < 0 || new1_x >= NUM_CELLS_HORIZONTAL
+             || new1_y < 0 || new1_y >= NUM_CELLS_VERTICAL
+             || grid[new1_x][new1_y] === CELL_OCCUPIED1
+             || grid[new1_x][new1_y] === CELL_OCCUPIED2
+             ) {
+               lightCycle1_alive = false;
+             }
+             else {
+               grid[new1_x][new1_y] = CELL_OCCUPIED1;
+               lightCycle1_x = new1_x;
+               lightCycle1_y = new1_y;
+             }
+           }
+           if (lightCycle2_alive) {
+             var new2_x = lightCycle2_x + lightCycle2_vx;
+             var new2_y = lightCycle2_y + lightCycle2_vy;
+
+             // Check for collision with grid boundaries and with trail
+             if (
+             new2_x < 0 || new2_x >= NUM_CELLS_HORIZONTAL
+             || new2_y < 0 || new2_y >= NUM_CELLS_VERTICAL
+             || grid[new2_x][new2_y] === CELL_OCCUPIED2
+             || grid[new2_x][new2_y] === CELL_OCCUPIED1
+             ) {
+               lightCycle2_alive = false;
+             }
+             else {
+               grid[new2_x][new2_y] = CELL_OCCUPIED2;
+               lightCycle2_x = new2_x;
+               lightCycle2_y = new2_y;
+             }
+           }
+           // Arrêter le jeu des qu'il y a collision
+           if (lightCycle1_alive === false || lightCycle2_alive === false) {
+             go = false;
+           }
+           counter();
+           alerts();
+         }
+         // Initialisation du nbr de tour gagné par chaque joueur à 0
+         var player1Count = 0;
+         var player2Count = 0;
+
+         var counter = function () {
+           // si le joueur 1 meurt AND le joueur 2 est vivant, on incrémente joueur 2
+           if (lightCycle1_alive === false && lightCycle2_alive === true) {
+             player2Count++;
+           }
+           // si le joueur 2 meurt AND le joueur 1 est vivant, on incrémente joueur 1
+           else if (lightCycle2_alive === false && lightCycle1_alive === true) {
+             player1Count++;
+           }
+           // écrire le nb de tour gagné par chaque joueur dans le HTML
+           document.getElementById("player1").innerHTML = player1Count;
+           document.getElementById("player2").innerHTML = player2Count;
+         }
+
+         // Messages pop ups à la fin de chaque tour
+         var alerts = function () {
+           if (lightCycle1_alive === false && lightCycle2_alive === true) {
+             alert("Player 2 wins ! :)")
+           }
+           else if (lightCycle2_alive === false && lightCycle1_alive === true) {
+             alert("Player 1 wins ! :)")
+           } else if (lightCycle1_alive === false && lightCycle2_alive === false) {
+             alert("Nobody wins !")
+           }
+         }
+         //
+         // Le boutton Go marche seulement si les 2 players sont vivants
+         var goButtonHandler = function () {
+           if (lightCycle1_alive === true && lightCycle2_alive === true) {
+             go = true;
+             timer_1.start(function () {
+               if (go) {
+                 advance();
+                 if (t >= SPEED) {
+                   // On diminue l'intervale du temps pour augmenter
+                   // la vitesse de l'avancement (du redraw)
+                   t = t - SPEED;
+                   timer_1.set_interval(t);
+                   console.log("added");
+                 } else {
+                   timer_1.stop();
+                 }
+                 redraw();
+               }
+             }, t, false);
+           }
+         }
+         // Pause
+         var pauseButtonHandler = function () {
+           go = false;
+           timer_1.stop(); // pour éviter une boucle infinie
+         }
+         // La fonction emptyGrid sert à vider les cellules de la grille
+         var emptyGrid = function () {
+           for (i = 0; i < grid.length; i++) {
+             for (j = 0; j < grid[i].length; j++) {
+               grid[i][j] = CELL_EMPTY;
+             }
+           }
+         }
+         // Pendant que les 2 players sont vivants, on peut restart le tour
+         var restartButtonHandler = function () {
+           if (lightCycle1_alive === true && lightCycle2_alive === true) {
+             emptyGrid();
+             t = TIME_START;// pour initialiser le temps qui controle le speed
+             start();
+           }
+         }
+         // Si un des 2 players est mort, on peut replay pour commencer un nouveau tour
+         // sans rafraichir la page
+         var replayButtonHandler = function () {
+           if (lightCycle1_alive === false || lightCycle2_alive === false) {
+             go = true;
+             emptyGrid();
+             t = TIME_START;// pour initialiser le temps qui controle le speed
+             start();
+           }
+         }
+         // Le bouton Finish sert à afficher le gagant de la partie (partie = total des tours)
+         // et remettre le compteur à 0 pour permettre de jouer une 2e partie sans rafraichir la page
+         var finishButtonHandler = function () {
+           if (player1Count > player2Count) {
+             alert("Congratulations! Player 1 won the game :) ")
+           }
+           else if (player1Count < player2Count) {
+             alert("Congratulations! Player 2 won the game :) ")
+           }
+           else if ((player1Count == player2Count)) {
+             alert("Nobody won the game :/")
+           }
+           player1Count = 0;
+           player2Count = 0;
+           document.getElementById("player1").innerHTML = player1Count;
+           document.getElementById("player2").innerHTML = player2Count;
+           emptyGrid();
+           start();
+           go = false;
+           timer_1.stop(); // pour éviter une boucle infinie
+         }
+
+      </script>
+   </body>
+</html>
